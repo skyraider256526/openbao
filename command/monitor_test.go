@@ -67,7 +67,7 @@ func TestMonitorCommand_Run(t *testing.T) {
 			client, closer := testVaultServer(t)
 			defer closer()
 
-			var code int64
+			var code atomic.Int64
 			shutdownCh := make(chan struct{})
 
 			ui, cmd := testMonitorCommand(t)
@@ -75,13 +75,13 @@ func TestMonitorCommand_Run(t *testing.T) {
 			cmd.ShutdownCh = shutdownCh
 
 			go func() {
-				atomic.StoreInt64(&code, int64(cmd.Run(tc.args)))
+				code.Store(int64(cmd.Run(tc.args)))
 			}()
 
 			<-time.After(3 * time.Second)
 			close(shutdownCh)
 
-			if atomic.LoadInt64(&code) != tc.code {
+			if code.Load() != tc.code {
 				t.Errorf("expected %d to be %d", code, tc.code)
 			}
 

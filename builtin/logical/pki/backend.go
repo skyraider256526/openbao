@@ -247,8 +247,8 @@ func Backend(conf *logical.BackendConfig) *backend {
 		// We specifically do NOT add acme/new-eab to this as it should be auth'd
 	}
 
-	b.tidyCASGuard = new(uint32)
-	b.tidyCancelCAS = new(uint32)
+	b.tidyCASGuard = new(atomic.Bool)
+	b.tidyCancelCAS = new(atomic.Bool)
 	b.tidyStatus = &tidyStatus{state: tidyStatusInactive}
 	b.storage = conf.StorageView
 	b.backendUUID = conf.BackendUUID
@@ -285,8 +285,8 @@ type backend struct {
 	backendUUID       string
 	storage           logical.Storage
 	revokeStorageLock sync.RWMutex
-	tidyCASGuard      *uint32
-	tidyCancelCAS     *uint32
+	tidyCASGuard      *atomic.Bool
+	tidyCancelCAS     *atomic.Bool
 
 	tidyStatusLock sync.RWMutex
 	tidyStatus     *tidyStatus
@@ -591,7 +591,7 @@ func (b *backend) periodicFunc(ctx context.Context, request *logical.Request) er
 
 		// Ensure a tidy isn't already running... If it is, we'll trigger
 		// again when the running one finishes.
-		if !atomic.CompareAndSwapUint32(b.tidyCASGuard, 0, 1) {
+		if !b.tidyCASGuard.CompareAndSwap(false, true) {
 			return nil
 		}
 

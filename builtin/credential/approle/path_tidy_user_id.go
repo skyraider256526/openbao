@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sync/atomic"
 	"time"
 
 	"github.com/openbao/openbao/sdk/v2/framework"
@@ -49,7 +48,7 @@ func (b *backend) tidySecretID(ctx context.Context, req *logical.Request) (*logi
 		return nil, logical.ErrReadOnly
 	}
 
-	if !atomic.CompareAndSwapUint32(b.tidySecretIDCASGuard, 0, 1) {
+	if !b.tidySecretIDCASGuard.CompareAndSwap(false, true) {
 		resp := &logical.Response{}
 		resp.AddWarning("Tidy operation already in progress.")
 		return resp, nil
@@ -68,7 +67,7 @@ type tidyHelperSecretIDAccessor struct {
 }
 
 func (b *backend) tidySecretIDinternal(s logical.Storage) {
-	defer atomic.StoreUint32(b.tidySecretIDCASGuard, 0)
+	defer b.tidySecretIDCASGuard.Store(false)
 
 	logger := b.Logger().Named("tidy")
 

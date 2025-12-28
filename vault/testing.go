@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
@@ -1107,7 +1106,7 @@ func (c *TestCluster) ensureCoresSealed() error {
 }
 
 func SetReplicationFailureMode(core *TestClusterCore, mode uint32) {
-	atomic.StoreUint32(core.replicationFailure, mode)
+	core.replicationFailure.Store(mode)
 }
 
 type TestListener struct {

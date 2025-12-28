@@ -492,8 +492,8 @@ type Core struct {
 
 	// replicationState keeps the current replication state cached for quick
 	// lookup; activeNodeReplicationState stores the active value on standbys
-	replicationState           *uint32
-	activeNodeReplicationState *uint32
+	replicationState           *atomic.Uint32
+	activeNodeReplicationState *atomic.Uint32
 
 	// uiConfig contains UI configuration
 	uiConfig *UIConfig
@@ -543,7 +543,7 @@ type Core struct {
 
 	// replicationFailure is used to mark when replication has entered an
 	// unrecoverable failure.
-	replicationFailure *uint32
+	replicationFailure *atomic.Uint32
 
 	licensingStopCh chan struct{}
 
@@ -553,7 +553,7 @@ type Core struct {
 
 	// Can be toggled atomically to cause the core to never try to become
 	// active, or give up active as soon as it gets it
-	neverBecomeActive *uint32
+	neverBecomeActive *atomic.Uint32
 
 	// clusterListener starts up and manages connections on the cluster ports
 	clusterListener *atomic.Value
@@ -954,17 +954,17 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 		rawEnabled:                     conf.EnableRaw,
 		introspectionEnabled:           conf.EnableIntrospection,
 		shutdownDoneCh:                 new(atomic.Value),
-		replicationState:               new(uint32),
+		replicationState:               new(atomic.Uint32),
 		localClusterPrivateKey:         new(atomic.Value),
 		localClusterCert:               new(atomic.Value),
 		localClusterParsedCert:         new(atomic.Value),
-		activeNodeReplicationState:     new(uint32),
+		activeNodeReplicationState:     new(atomic.Uint32),
 		keepHALockOnStepDown:           new(uint32),
-		replicationFailure:             new(uint32),
+		replicationFailure:             new(atomic.Uint32),
 		activeContextCancelFunc:        new(atomic.Value),
 		allLoggers:                     conf.AllLoggers,
 		builtinRegistry:                conf.BuiltinRegistry,
-		neverBecomeActive:              new(uint32),
+		neverBecomeActive:              new(atomic.Uint32),
 		clusterLeaderParams:            new(atomic.Value),
 		metricsHelper:                  conf.MetricsHelper,
 		metricSink:                     conf.MetricSink,
@@ -1014,7 +1014,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 
 	c.SetConfig(conf.RawConfig)
 
-	atomic.StoreUint32(c.replicationState, uint32(consts.ReplicationDRDisabled|consts.ReplicationPerformanceDisabled))
+	c.replicationState.Store(uint32(consts.ReplicationDRDisabled | consts.ReplicationPerformanceDisabled))
 	c.localClusterCert.Store(([]byte)(nil))
 	c.localClusterParsedCert.Store((*x509.Certificate)(nil))
 	c.localClusterPrivateKey.Store((*ecdsa.PrivateKey)(nil))
@@ -1060,7 +1060,7 @@ func CreateCore(conf *CoreConfig) (*Core, error) {
 	// Load CORS config and provide a value for the core field.
 	c.corsConfig = &CORSConfig{
 		core:    c,
-		Enabled: new(uint32),
+		Enabled: new(atomic.Uint32),
 	}
 
 	// Load write-forwarded path manager.
@@ -2636,11 +2636,11 @@ func (c *Core) preSeal() error {
 }
 
 func (c *Core) ReplicationState() consts.ReplicationState {
-	return consts.ReplicationState(atomic.LoadUint32(c.replicationState))
+	return consts.ReplicationState(c.replicationState.Load())
 }
 
 func (c *Core) ActiveNodeReplicationState() consts.ReplicationState {
-	return consts.ReplicationState(atomic.LoadUint32(c.activeNodeReplicationState))
+	return consts.ReplicationState(c.activeNodeReplicationState.Load())
 }
 
 func (c *Core) SealAccess() *SealAccess {

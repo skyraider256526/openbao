@@ -37,17 +37,16 @@ var StdAllowedHeaders = []string{
 type CORSConfig struct {
 	sync.RWMutex   `json:"-"`
 	core           *Core
-	Enabled        *uint32  `json:"enabled"`
-	AllowedOrigins []string `json:"allowed_origins,omitempty"`
-	AllowedHeaders []string `json:"allowed_headers,omitempty"`
+	Enabled        *atomic.Uint32 `json:"enabled"`
+	AllowedOrigins []string       `json:"allowed_origins,omitempty"`
+	AllowedHeaders []string       `json:"allowed_headers,omitempty"`
 }
 
 func (c *Core) saveCORSConfig(ctx context.Context) error {
 	view := c.systemBarrierView.SubView("config/")
 
-	enabled := atomic.LoadUint32(c.corsConfig.Enabled)
 	localConfig := &CORSConfig{
-		Enabled: &enabled,
+		Enabled: c.corsConfig.Enabled,
 	}
 	c.corsConfig.RLock()
 	localConfig.AllowedOrigins = c.corsConfig.AllowedOrigins
@@ -86,7 +85,7 @@ func (c *Core) loadCORSConfig(ctx context.Context) error {
 	}
 
 	if newConfig.Enabled == nil {
-		newConfig.Enabled = new(uint32)
+		newConfig.Enabled = new(atomic.Uint32)
 	}
 
 	newConfig.core = c
@@ -120,19 +119,19 @@ func (c *CORSConfig) Enable(ctx context.Context, urls []string, headers []string
 	}
 	c.Unlock()
 
-	atomic.StoreUint32(c.Enabled, CORSEnabled)
+	c.Enabled.Store(CORSEnabled)
 
 	return c.core.saveCORSConfig(ctx)
 }
 
 // IsEnabled returns the value of CORSConfig.isEnabled
 func (c *CORSConfig) IsEnabled() bool {
-	return atomic.LoadUint32(c.Enabled) == CORSEnabled
+	return c.Enabled.Load() == CORSEnabled
 }
 
 // Disable sets CORS to disabled and clears the allowed origins & headers.
 func (c *CORSConfig) Disable(ctx context.Context) error {
-	atomic.StoreUint32(c.Enabled, CORSDisabled)
+	c.Enabled.Store(CORSDisabled)
 	c.Lock()
 
 	c.AllowedOrigins = nil

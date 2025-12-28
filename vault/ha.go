@@ -517,7 +517,7 @@ func (c *Core) runStandbyOnce(doneCh chan<- struct{}, manualStepDownCh chan stru
 		defer readStandbyCancel()
 
 		// Unseal, holding the state lock.
-		atomic.StoreUint32(c.replicationState, uint32(consts.ReplicationDRDisabled|consts.ReplicationPerformanceStandby))
+		c.replicationState.Store(uint32(consts.ReplicationDRDisabled | consts.ReplicationPerformanceStandby))
 		if err := c.postUnseal(readStandbyCtx, readStandbyCancel, readonlyUnsealStrategy{}); err != nil {
 			c.logger.Error("read-only post-unseal setup failed", "error", err)
 			if err := c.barrier.Seal(); err != nil {
@@ -647,7 +647,7 @@ func (c *Core) waitForLeadership(manualStepDownCh, stopCh <-chan struct{}) {
 			return
 		}
 
-		if atomic.LoadUint32(c.neverBecomeActive) == 1 {
+		if c.neverBecomeActive.Load() == 1 {
 			c.heldHALock = nil
 			lock.Unlock()
 			c.logger.Info("marked never become active, giving up active state")
@@ -786,7 +786,7 @@ func (c *Core) waitForLeadership(manualStepDownCh, stopCh <-chan struct{}) {
 		}
 
 		// Attempt the post-unseal process
-		atomic.StoreUint32(c.replicationState, uint32(consts.ReplicationDRDisabled|consts.ReplicationPerformancePrimary))
+		c.replicationState.Store(uint32(consts.ReplicationDRDisabled | consts.ReplicationPerformancePrimary))
 		err = c.postUnseal(activeCtx, activeCtxCancel, standardUnsealStrategy{})
 		if err == nil {
 			c.standby.Store(false)
@@ -798,7 +798,7 @@ func (c *Core) waitForLeadership(manualStepDownCh, stopCh <-chan struct{}) {
 
 		// Handle a failure to unseal
 		if err != nil {
-			atomic.StoreUint32(c.replicationState, uint32(consts.ReplicationDRDisabled|consts.ReplicationPerformanceStandby))
+			c.replicationState.Store(uint32(consts.ReplicationDRDisabled | consts.ReplicationPerformanceStandby))
 			c.standby.Store(true)
 			c.logger.Error("post-unseal setup failed", "error", err)
 			lock.Unlock()
@@ -1301,9 +1301,9 @@ func (c *Core) clearLeader(uuid string) error {
 
 func (c *Core) SetNeverBecomeActive(on bool) {
 	if on {
-		atomic.StoreUint32(c.neverBecomeActive, 1)
+		c.neverBecomeActive.Store(1)
 	} else {
-		atomic.StoreUint32(c.neverBecomeActive, 0)
+		c.neverBecomeActive.Store(0)
 	}
 }
 
